@@ -1,0 +1,5 @@
+{
+  "name": "Repo2APK",
+  "description": "Convert GitHub repositories into downloadable Android APK files using a production-ready full-stack pipeline.",
+  "requestFramePermissions": []
+}
