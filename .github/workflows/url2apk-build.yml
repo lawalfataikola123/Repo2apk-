@@ -50,6 +50,8 @@ jobs:
           }
           EOF
 
+          printf "android.useAndroidX=true\nandroid.enableJetifier=true\n" > gradle.properties
+
           PKG="${{ github.event.inputs.package_name }}"
           APPNAME="${{ github.event.inputs.app_name }}"
           URL="${{ github.event.inputs.url }}"
@@ -77,8 +79,9 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET"/>
-            <application android:label="$APPNAME" android:theme="@style/AppTheme" android:usesCleartextTraffic="true">
-              <activity android:name=".MainActivity" android:exported="true">
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+            <application android:label="$APPNAME" android:theme="@style/AppTheme" android:usesCleartextTraffic="true" android:hardwareAccelerated="true">
+              <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
                   <category android:name="android.intent.category.LAUNCHER"/>
@@ -90,24 +93,46 @@ jobs:
 
           cat > app/src/main/java/com/repo2apk/webview/MainActivity.java << EOF
           package com.repo2apk.webview;
-          
           import android.os.Bundle;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
-          public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
+          import android.webkit.SslErrorHandler;
+          import android.net.http.SslError;
+          import android.webkit.WebChromeClient;
+          import androidx.appcompat.app.AppCompatActivity;
+          public class MainActivity extends AppCompatActivity {
+            private WebView webView;
             @Override
             protected void onCreate(Bundle savedInstanceState) {
               super.onCreate(savedInstanceState);
-              WebView webView = new WebView(this);
+              webView = new WebView(this);
               setContentView(webView);
               WebSettings s = webView.getSettings();
               s.setJavaScriptEnabled(true);
               s.setDomStorageEnabled(true);
               s.setLoadWithOverviewMode(true);
               s.setUseWideViewPort(true);
-              webView.setWebViewClient(new WebViewClient());
+              s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+              s.setCacheMode(WebSettings.LOAD_DEFAULT);
+              s.setAllowFileAccess(true);
+              s.setAllowContentAccess(true);
+              s.setBuiltInZoomControls(true);
+              s.setDisplayZoomControls(false);
+              webView.setScrollBarStyle(WebView.SCROLLBARS_INSIDE_OVERLAY);
+              webView.setWebChromeClient(new WebChromeClient());
+              webView.setWebViewClient(new WebViewClient() {
+                @Override
+                public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                  handler.proceed();
+                }
+              });
               webView.loadUrl("$URL");
+            }
+            @Override
+            public void onBackPressed() {
+              if (webView.canGoBack()) webView.goBack();
+              else super.onBackPressed();
             }
           }
           EOF
@@ -124,7 +149,6 @@ jobs:
           distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
           EOF
 
-          printf "android.useAndroidX=true\nandroid.enableJetifier=true\n" > gradle.properties
           gradle wrapper --gradle-version 8.4 || true
 
       - name: Build APK
