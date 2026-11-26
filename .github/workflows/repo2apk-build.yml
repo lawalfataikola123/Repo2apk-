@@ -38,11 +38,11 @@ jobs:
           python - <<'PY'
           import os, re, sys
           value = os.environ["REPO_URL"].strip()
-          if not re.fullmatch(r"https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?", value):
+          if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?", value):
               print("Only public GitHub repository URLs are accepted.")
               sys.exit(1)
           with open(os.environ["GITHUB_ENV"], "a") as f:
-              f.write("REPO_URL=" + value.rstrip("/") + "\\n")
+              f.write("REPO_URL=" + value.rstrip("/") + "\n")
           PY
 
       - name: Set up Java 17
