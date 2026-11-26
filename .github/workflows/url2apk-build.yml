@@ -81,7 +81,7 @@ jobs:
             <uses-permission android:name="android.permission.INTERNET"/>
             <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
             <application android:label="$APPNAME" android:theme="@style/AppTheme" android:usesCleartextTraffic="true" android:hardwareAccelerated="true">
-              <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
+              <activity android:name="com.repo2apk.webview.MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
                   <category android:name="android.intent.category.LAUNCHER"/>
