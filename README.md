@@ -1,6 +1,10 @@
 # Repo2APK
 
+[![CI](https://github.com/lawalfataikola123/Repo2apk2/actions/workflows/ci.yml/badge.svg)](https://github.com/lawalfataikola123/Repo2apk2/actions)
+
 Convert GitHub repositories into downloadable Android APK files.
+
+GitHub: https://github.com/lawalfataikola123/Repo2apk2
 
 ## Features
 - **Auto-Detection**: Automatically identifies project type (Gradle, Flutter, React Native).
