@@ -124,6 +124,7 @@ jobs:
           distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
           EOF
 
+          printf "android.useAndroidX=true\nandroid.enableJetifier=true\n" > gradle.properties
           gradle wrapper --gradle-version 8.4 || true
 
       - name: Build APK
