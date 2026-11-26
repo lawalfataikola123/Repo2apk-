@@ -1,0 +1,150 @@
+name: Repo2APK Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: "Public GitHub repository URL to convert into an APK"
+        required: true
+        type: string
+      build_type:
+        description: "Project type"
+        required: true
+        type: choice
+        options:
+          - auto
+          - gradle
+          - flutter
+          - react-native
+        default: auto
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo2apk-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Validate repository URL
+        env:
+          REPO_URL: ${{ inputs.repo_url }}
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          value = os.environ["REPO_URL"].strip()
+          if not re.fullmatch(r"https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?", value):
+              print("Only public GitHub repository URLs are accepted.")
+              sys.exit(1)
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write("REPO_URL=" + value.rstrip("/") + "\\n")
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Clone source repository
+        run: git clone --depth 1 "$REPO_URL" source
+
+      - name: Detect project type
+        id: detect
+        env:
+          REQUESTED_TYPE: ${{ inputs.build_type }}
+        run: |
+          TYPE="$REQUESTED_TYPE"
+          if [ "$TYPE" = "auto" ]; then
+            if [ -f source/pubspec.yaml ]; then
+              TYPE=flutter
+            elif [ -f source/android/gradlew ] && [ -f source/package.json ]; then
+              TYPE=react-native
+            elif [ -f source/gradlew ] || [ -f source/app/build.gradle ] || [ -f source/app/build.gradle.kts ]; then
+              TYPE=gradle
+            else
+              echo "Could not identify an Android, Flutter, or React Native project."
+              exit 1
+            fi
+          fi
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
+          echo "Detected project type: $TYPE"
+
+      - name: Set up Flutter
+        if: steps.detect.outputs.type == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Flutter APK
+        if: steps.detect.outputs.type == 'flutter'
+        working-directory: source
+        run: |
+          flutter pub get
+          flutter build apk --release
+
+      - name: Build Gradle APK
+        if: steps.detect.outputs.type == 'gradle'
+        working-directory: source
+        run: |
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleRelease --no-daemon
+          elif [ -f app/build.gradle ] || [ -f app/build.gradle.kts ]; then
+            gradle assembleRelease --no-daemon
+          else
+            echo "No Gradle wrapper or app module found."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        if: steps.detect.outputs.type == 'react-native'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+
+      - name: Build React Native APK
+        if: steps.detect.outputs.type == 'react-native'
+        working-directory: source
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK output
+        id: apk
+        run: |
+          APK="$(find source -type f -path '*/build/outputs/apk/*/*.apk' -size +10k | head -n 1)"
+          if [ -z "$APK" ]; then
+            echo "Build finished but no real APK was produced."
+            exit 1
+          fi
+          mkdir -p output
+          cp "$APK" output/app-release.apk
+          echo "path=output/app-release.apk" >> "$GITHUB_OUTPUT"
+          ls -lh output/app-release.apk
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo2apk-${{ github.run_number }}-apk
+          path: output/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
